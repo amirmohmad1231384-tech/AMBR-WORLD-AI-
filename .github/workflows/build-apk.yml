@@ -1,99 +1,37 @@
-name: Build AMBR APK
+foreign government from where it is shipping requires an export license, or other governmental approval, without first obtaining such license or approval. Recipient also agrees to implement measures to ensure that foreign national employees are authorized to receive any information controlled by U.S. export control laws. An export is "deemed" to take place when information is released to a foreign national wherever located.
 
-on:
-  workflow_dispatch:
+10.7 Special Terms for Pre-Release Materials. If so indicated in the description of the Evaluation Software, the Evaluation Software may contain Pre-Release Materials. Recipient hereby understands, acknowledges and agrees that: (i) Pre-Release Materials may not be fully tested and may contain bugs or errors; (ii) Pre-Release materials are not suitable for commercial release in their current state; (iii) regulatory approvals for Pre-Release Materials (such as UL or FCC) have not been obtained, and Pre-Release Materials may therefore not be certified for use in certain countries or environments or may not be suitable for certain applications and (iv) MIPS can provide no assurance that it will ever produce or make generally available a production version of the Pre-Release Materials . MIPS is not under any obligation to develop and/or release or offer for sale or license a final product based upon the Pre-Release Materials and may unilaterally elect to abandon the Pre-Release Materials or any such development platform at any time and without any obligation or liability whatsoever to Recipient or any other person.
 
-permissions:
-  contents: read
+ANY PRE-RELEASE MATERIALS ARE NON-QUALIFIED AND, AS SUCH, ARE PROVIDED “AS IS” AND “AS AVAILABLE”, POSSIBLY WITH FAULTS, AND WITHOUT REPRESENTATION OR WARRANTY OF ANY KIND.
 
-jobs:
-  build:
-    name: Build Android APK
-    runs-on: ubuntu-24.04
+10.8 Open Source Software. In the event Open Source software is included with Evaluation Software, such Open Source software is licensed pursuant to the applicable Open Source software license agreement identified in the Open Source software comments in the applicable source code file(s) and/or file header as indicated in the Evaluation Software. Additional detail may be available (where applicable) in the accompanying on-line documentation. With respect to the Open Source software, nothing in this Agreement limits any rights under, or grants rights that supersede, the terms of any applicable Open Source software license agreement.
+---------------------------------------
+Accept? (y/N): All SDK package licenses accepted
 
-    steps:
-      - name: دریافت سورس مخزن
-        uses: actions/checkout@v4
+/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager tools
+Loading package information...                                                  
+Loading local repository...                                                     
+[                                       ] 3% Loading local repository...        
+[                                       ] 3% Fetch remote repository...         
+[=                                      ] 3% Fetch remote repository...         
+[=                                      ] 4% Fetch remote repository...         
+[=                                      ] 5% Fetch remote repository...         
+[==                                     ] 5% Fetch remote repository...         
+[==                                     ] 6% Fetch remote repository...         
+[==                                     ] 7% Fetch remote repository...         
+[==                                     ] 7% Computing updates...               
+[===                                    ] 8% Computing updates...               
+[===                                    ] 10% Computing updates...              
+                                                                                
+Warning: Failed to find package 'tools'
+/home/runner/work/_actions/android-actions/setup-android/v3/dist/index.js:1823
+                error = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);
+                        ^
 
-      - name: پیدا کردن و استخراج بسته اندروید
-        shell: bash
-        run: |
-          set -e
-
-          mkdir -p "$RUNNER_TEMP/ambr-kit"
-
-          KIT=""
-
-          for z in "$GITHUB_WORKSPACE"/*.zip; do
-            [ -f "$z" ] || continue
-
-            NAME=$(basename "$z")
-
-            if [ "$NAME" = "AMBR_GITHUB_BUILD_WORKFLOW.zip" ]; then
-              continue
-            fi
-
-            if unzip -Z1 "$z" | grep -Eq '(^|/)settings.gradle$' &&
-               unzip -Z1 "$z" | grep -Eq '(^|/)app/build.gradle$'; then
-              KIT="$z"
-              break
-            fi
-          done
-
-          if [ -z "$KIT" ]; then
-            echo "ERROR: بسته واقعی پروژه اندروید پیدا نشد."
-            echo "باید ZIP شامل settings.gradle و app/build.gradle در مخزن باشد."
-            exit 1
-          fi
-
-          echo "بسته پیدا شد: $KIT"
-
-          unzip -oq "$KIT" -d "$RUNNER_TEMP/ambr-kit"
-
-          ROOT=$(find "$RUNNER_TEMP/ambr-kit" -type f -name settings.gradle -printf '%h\n' | head -n 1)
-
-          if [ -z "$ROOT" ] || [ ! -f "$ROOT/app/build.gradle" ]; then
-            echo "ERROR: ساختار پروژه اندروید ناقص است."
-            exit 1
-          fi
-
-          cp -a "$ROOT"/. "$GITHUB_WORKSPACE"/
-
-          test -f settings.gradle
-          test -f app/build.gradle
-
-      - name: نصب جاوا
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: نصب ابزار اندروید
-        uses: android-actions/setup-android@v3
-
-      - name: نصب Android SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: نصب Gradle
-        run: |
-          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
-          sudo unzip -oq /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.9/bin" >> "$GITHUB_PATH"
-
-      - name: ساخت APK
-        run: |
-          gradle assembleDebug --no-daemon --stacktrace
-
-      - name: بررسی فایل APK
-        run: |
-          test -f app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/
-
-      - name: آماده‌سازی دانلود APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: AMBR-Android-APK
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+Error: The process '/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager' failed with exit code 1
+    at ExecState._setResult (/home/runner/work/_actions/android-actions/setup-android/v3/dist/index.js:1823:25)
+    at ExecState.CheckComplete (/home/runner/work/_actions/android-actions/setup-android/v3/dist/index.js:1806:18)
+    at ChildProcess.<anonymous> (/home/runner/work/_actions/android-actions/setup-android/v3/dist/index.js:1700:27)
+    at ChildProcess.emit (node:events:514:28)
+    at maybeClose (node:internal/child_process:1172:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:335:5)
