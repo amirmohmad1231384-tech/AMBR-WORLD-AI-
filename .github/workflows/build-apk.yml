@@ -2,39 +2,35 @@ name: Build AMBR APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Android build kit
+      - name: Extract AMBR
         run: |
-          mkdir -p /tmp/ambr
-          unzip -o "کیت ساخت اندروید AMBR.zip" -d /tmp/ambr
-          cp -a /tmp/ambr/. .
+          unzip -o "کیت ساخت اندروید AMBR.zip" -d .
+          ls -la
 
-      - name: Set up JDK
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Build APK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Install Gradle
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gradle
-
-      - name: Assemble debug APK
+      - name: Build APK
         run: gradle assembleDebug
 
       - name: Upload APK
