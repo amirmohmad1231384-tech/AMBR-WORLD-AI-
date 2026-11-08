@@ -1,38 +1,97 @@
-      - name: Find and extract Android build kit
+name: AMBR Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find Android project ZIP
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          KIT=""
+          echo "Searching for Android project..."
 
-          while IFS= read -r -d '' FILE; do
-            if unzip -Z1 "$FILE" | grep -Eq '(^|/)settings.gradle$' &&
-               unzip -Z1 "$FILE" | grep -Eq '(^|/)app/build.gradle$'; then
-              KIT="$FILE"
+          FOUND=""
+
+          while IFS= read -r -d '' ZIP; do
+            echo "Checking: $ZIP"
+
+            if ! unzip -tq "$ZIP" >/dev/null 2>&1; then
+              continue
+            fi
+
+            TEMP="$(mktemp -d)"
+            unzip -q "$ZIP" -d "$TEMP"
+
+            SETTINGS="$(find "$TEMP" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+
+            if [ -z "$SETTINGS" ]; then
+              rm -rf "$TEMP"
+              continue
+            fi
+
+            PROJECT="$(dirname "$SETTINGS")"
+
+            if [ -f "$PROJECT/app/build.gradle" ] || [ -f "$PROJECT/app/build.gradle.kts" ]; then
+              FOUND="$PROJECT"
+              echo "Android project found."
               break
             fi
-          done < <(find . -maxdepth 2 -type f -iname '*.zip' -print0)
 
-          if [ -z "$KIT" ]; then
-            echo "ERROR: No ZIP containing Android Gradle project was found."
-            echo "Available ZIP files:"
-            find . -maxdepth 2 -type f -iname '*.zip'
+            rm -rf "$TEMP"
+          done < <(find . -type f -iname '*.zip' -not -path './.git/*' -print0)
+
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: No complete Android project found in ZIP files."
+            echo "ZIP files in repository:"
+            find . -type f -iname '*.zip' -not -path './.git/*'
             exit 1
           fi
 
-          echo "Found: $KIT"
+          cp -a "$FOUND/." .
 
-          TEMP_DIR=$(mktemp -d)
-          unzip -q "$KIT" -d "$TEMP_DIR"
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-          SETTINGS=$(find "$TEMP_DIR" -type f -name settings.gradle -print -quit)
-          PROJECT_DIR=$(dirname "$SETTINGS")
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-          test -f "$PROJECT_DIR/app/build.gradle"
+      - name: Install Android SDK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-          cp -a "$PROJECT_DIR"/. .
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-          test -f settings.gradle
-          test -f app/build.gradle
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
 
-          echo "Android project extracted successfully."
+      - name: Verify APK
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMBR-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
