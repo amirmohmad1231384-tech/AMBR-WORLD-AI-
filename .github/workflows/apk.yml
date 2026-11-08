@@ -1,3 +1,4 @@
+
 name: AMBR Android APK
 
 on:
@@ -11,35 +12,38 @@ permissions:
 
 jobs:
   build:
+    name: Build AMBR APK
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find Android project ZIP
+      - name: Find and extract Android project
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Searching for Android project..."
+          echo "Searching for Android project ZIP..."
 
           FOUND=""
+          TEMP_ROOT="$(mktemp -d)"
 
           while IFS= read -r -d '' ZIP; do
             echo "Checking: $ZIP"
 
             if ! unzip -tq "$ZIP" >/dev/null 2>&1; then
+              echo "Invalid ZIP: $ZIP"
               continue
             fi
 
-            TEMP="$(mktemp -d)"
+            TEMP="$(mktemp -d "$TEMP_ROOT/project-XXXXXX")"
             unzip -q "$ZIP" -d "$TEMP"
 
             SETTINGS="$(find "$TEMP" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
 
             if [ -z "$SETTINGS" ]; then
-              rm -rf "$TEMP"
+              echo "No Gradle settings file found."
               continue
             fi
 
@@ -47,49 +51,87 @@ jobs:
 
             if [ -f "$PROJECT/app/build.gradle" ] || [ -f "$PROJECT/app/build.gradle.kts" ]; then
               FOUND="$PROJECT"
-              echo "Android project found."
+              echo "Android project found in: $ZIP"
               break
             fi
-
-            rm -rf "$TEMP"
           done < <(find . -type f -iname '*.zip' -not -path './.git/*' -print0)
 
           if [ -z "$FOUND" ]; then
-            echo "ERROR: No complete Android project found in ZIP files."
-            echo "ZIP files in repository:"
+            echo "ERROR: No complete Android project found."
+            echo "ZIP files:"
             find . -type f -iname '*.zip' -not -path './.git/*'
             exit 1
           fi
 
-          cp -a "$FOUND/." .
+          cp -a "$FOUND/." "$GITHUB_WORKSPACE/"
 
-      - name: Setup Java
+          test -f settings.gradle || test -f settings.gradle.kts
+          test -f app/build.gradle || test -f app/build.gradle.kts
+
+          echo "Android project extracted successfully."
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
+      - name: Configure Android SDK
+        shell: bash
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
 
-      - name: Setup Gradle
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SDK="$ANDROID_HOME"
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -type f -name sdkmanager -print -quit)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found."
+            exit 1
+          fi
+
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses
+          set -o pipefail
+
+          "$SDKMANAGER" --sdk_root="$SDK" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build AMBR APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Verify APK
+        shell: bash
         run: |
-          test -f app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          set -euo pipefail
 
-      - name: Upload APK
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not generated."
+            find app/build/outputs -type f || true
+            exit 1
+          fi
+
+          echo "APK successfully generated:"
+          ls -lh "$APK"
+
+      - name: Upload AMBR APK
         uses: actions/upload-artifact@v4
         with:
           name: AMBR-Android-APK
